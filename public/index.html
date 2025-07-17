@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FHEVM Voting System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <!-- Global Error Handler for Browser Extensions -->
+    <script>
+        // Global error handler, ignore browser extension errors
+        window.addEventListener('error', function(event) {
+            // Ignore errors from browser extensions
+            if (event.filename && (
+                event.filename.includes('extension://') ||
+                event.filename.includes('moz-extension://') ||
+                event.filename.includes('solana') ||
+                event.filename.includes('btc.js') ||
+                event.filename.includes('sui.js') ||
+                event.filename.includes('inpage.js') ||
+                event.filename.includes('dapp-interface.js') ||
+                event.filename.includes('contentScript')
+            )) {
+                event.preventDefault();
+                return true;
+            }
+        });
+        
+        // Ignore unhandled Promise rejections (mainly from extensions)
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason && event.reason.message && (
+                event.reason.message.includes('register') ||
+                event.reason.message.includes('MutationObserver') ||
+                event.reason.message.includes('extension')
+            )) {
+                event.preventDefault();
+                return true;
+            }
+        });
+    </script>
+    
+    <!-- External JavaScript Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" integrity="sha512-FDcVY+g7vc5CXANbrTSg1K5qLyriCsGDYCE02Li1tXEYdNQPvLPHNE+rT2Mjei8N7fZbe0WLhw27j2SrGRpdMg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js" integrity="sha512-WrdC3CE9vf1nBf58JHepuWT4x24uTacky9fuzw2g/3L9JkihgwZ6Cfv+JGTtNyosOhEmttMtEZ6H3qJWfI7gIQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗳️ SecureVote</h1>
+            <p>Privacy-First Voting Platform with Fully Homomorphic Encryption</p>
+        </div>
+
+        <div class="nav-bar">
+            <div class="nav-links">
+                <a href="#" style="background: rgba(255, 255, 255, 0.2); cursor: default;">🗳️ Voting System</a>
+            </div>
+            <div class="wallet-section">
+                <button id="connectWallet" class="btn">Connect Wallet</button>
+                <span id="walletAddress" class="hidden"></span>
+            </div>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+
+        <!-- Voter Information -->
+        <div id="voterInfo" class="card hidden">
+            <h2>👤 Voter Information</h2>
+            <div class="voter-info">
+                <h3>Your Voting Permissions</h3>
+                <div class="voter-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="votingPower">-</div>
+                        <div class="stat-label">Voting Power</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="votesCount">-</div>
+                        <div class="stat-label">Votes Cast</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="isAuthorized">-</div>
+                        <div class="stat-label">Authorization Status</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Functions -->
+        <div id="adminPanel" class="card hidden">
+            <h2>👨‍💼 Admin Panel</h2>
+            
+            <div class="form-group">
+                <h3>Add Authorized Voter</h3>
+                <label for="voterAddress">Voter Address:</label>
+                <input type="text" id="voterAddress" placeholder="0x...">
+                
+                <label for="votingPowerInput">Voting Power:</label>
+                <input type="number" id="votingPowerInput" placeholder="100" min="1" max="1000">
+                
+                <button id="addVoter" class="btn">Add Voter</button>
+            </div>
+
+            <div class="form-group">
+                <h3>Create New Proposal</h3>
+                <label for="proposalTitle">Proposal Title:</label>
+                <input type="text" id="proposalTitle" placeholder="Enter proposal title">
+                
+                <label for="proposalDescription">Proposal Description:</label>
+                <textarea id="proposalDescription" placeholder="Describe the proposal in detail..."></textarea>
+                
+                <label for="votingDuration">Voting Duration (hours):</label>
+                <input type="number" id="votingDuration" placeholder="24" min="1" max="168">
+                
+                <button id="createProposal" class="btn">Create Proposal</button>
+            </div>
+        </div>
+
+        <!-- Test Data Section -->
+        <div class="card test-demo-card">
+            <h2>🧪 Test Voting Demo</h2>
+            <p style="margin-bottom: 20px;">Experience the voting system with these demo proposals. No wallet connection required for testing! Try voting on different proposals and see real-time results.</p>
+            <div class="form-group">
+                <button id="loadTestData" class="btn btn-success pulse">🚀 Load Test Proposals</button>
+                <button id="clearTestData" class="btn btn-secondary" style="margin-left: 10px;">🗑️ Clear Test Data</button>
+            </div>
+        </div>
+
+        <!-- Proposal List -->
+        <div class="card">
+            <h2>📋 Voting Proposals</h2>
+            <div class="form-group">
+                <button id="loadProposals" class="btn btn-secondary">Refresh Proposal List</button>
+            </div>
+            <div id="proposalsList" class="grid">
+                <div style="text-align: center; padding: 60px 20px; color: #718096;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">🗳️</div>
+                    <h3 style="margin-bottom: 15px; color: #4a5568;">Welcome to SecureVote</h3>
+                    <p style="margin-bottom: 20px; line-height: 1.6;">No proposals available yet. Get started by:</p>
+                    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 400px; margin: 0 auto;">
+                        <div style="background: #f7fafc; padding: 15px; border-radius: 10px; border-left: 4px solid #667eea;">
+                            <strong>🧪 Try the Demo:</strong> Click "Load Test Proposals" above to explore the voting system with sample data
+                        </div>
+                        <div style="background: #f7fafc; padding: 15px; border-radius: 10px; border-left: 4px solid #48bb78;">
+                            <strong>🔗 Connect Wallet:</strong> Connect your wallet to create real proposals and participate in voting
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Voting History -->
+        <div class="card">
+            <h2>📊 Voting Statistics</h2>
+            <div id="votingStats">
+                <div class="voter-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalProposals">0</div>
+                        <div class="stat-label">Total Proposals</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="activeProposals">0</div>
+                        <div class="stat-label">Active Proposals</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="myVotes">0</div>
+                        <div class="stat-label">My Votes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External JavaScript Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/fhevmjs@0.6.2/bundle/index.js"></script>
+    
+    <!-- Optimization modules (load first) -->
+    <script src="js/state-manager.js"></script>
+    <script src="js/error-handler.js"></script>
+    <script src="js/performance-optimizer.js"></script>
+    <script src="js/type-validator.js"></script>
+    <script src="js/cache-manager.js"></script>
+    
+    <!-- Core application modules -->
+    <script src="js/config.js"></script>
+    <script src="js/wallet.js"></script>
+    <script src="js/contract.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Contract ABI configuration
+        const CONTRACT_ABI = [
+            "function owner() view returns (address)",
+            "function proposalCount() view returns (uint256)",
+            "function authorizedVoters(address) view returns (bool)",
+            "function authorizeVoter(address voter, uint32 power) external",
+            "function addAuthorizedVoter(address voter, bytes32 encryptedVotingPower, bytes calldata inputProof) external",
+            "function createProposal(string memory title, string memory description, uint256 votingDuration) external returns (uint256)",
+            "function vote(uint256 proposalId, bytes32 encryptedVote, bytes calldata inputProof) external",
+            "function getProposal(uint256 proposalId) view returns (tuple(uint256 id, string title, string description, address creator, uint256 creationTime, uint256 endTime, bool isActive, bool isFinalized))",
+            "function isAuthorizedVoter(address voter) view returns (bool)",
+            "function hasVoted(uint256 proposalId, address voter) view returns (bool)",
+            "function getVotingStats(uint256 proposalId) view returns (tuple(bytes32 totalVotes, bytes32 yesVotes, bytes32 noVotes))",
+            "function getProposalCount() view returns (uint256)",
+            "event ProposalCreated(uint256 indexed proposalId, address indexed creator, string title, uint256 endTime)",
+            "event VoteCast(uint256 indexed proposalId, address indexed voter)",
+            "event VoterAdded(address indexed voter, address indexed admin)"
+        ];
+        
+        // Set ABI as global variable for module use
+        window.CONTRACT_ABI = CONTRACT_ABI;
+
+        // Global test voting handler function
+        window.handleTestVote = function(proposalId, support) {
+            const action = support ? 'supported' : 'opposed';
+            const emoji = support ? '✅' : '❌';
+            
+            // Show vote confirmation
+            if (window.uiManager) {
+                window.uiManager.showNotification(
+                    'Test Vote Cast',
+                    `${emoji} You have ${action} proposal #${proposalId} in demo mode`,
+                    'success'
+                );
+            } else {
+                alert(`${emoji} You have ${action} proposal #${proposalId} in demo mode`);
+            }
+        };
+
+        // Global test data functions
+        window.loadTestData = function() {
+            if (window.appController) {
+                return window.appController.loadTestData();
+            }
+        };
+
+        window.clearTestData = function() {
+            if (window.appController) {
+                return window.appController.clearTestData();
+            }
+        };
+
+        // Initialize application after page load
+         document.addEventListener('DOMContentLoaded', async () => {
+             try {
+                 // Create and initialize AppController
+                 const appController = new AppController();
+                 await appController.initialize();
+                 
+                 // Make it globally available
+                 window.appController = appController;
+                 
+                 console.log('✅ Application initialized successfully');
+             } catch (error) {
+                 console.error('❌ Failed to initialize application:', error);
+                 
+                 // Show user-friendly error message
+                 const statusElement = document.getElementById('status');
+                 if (statusElement) {
+                     statusElement.className = 'status error';
+                     statusElement.textContent = 'Failed to initialize application. Please refresh the page.';
+                     statusElement.classList.remove('hidden');
+                 }
+             }
+         });
+    </script>
+</body>
+</html>

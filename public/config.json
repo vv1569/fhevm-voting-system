@@ -1,0 +1,23 @@
+{
+  "chainId": "1337",
+  "rpcUrl": "http://localhost:8545",
+  "gatewayUrl": "http://localhost:7077",
+  "contractAddress": "0x6fc5a83557a5284c21d1cce914fff22f64b7c0c2",
+  "networkName": "Local Network",
+  "blockExplorer": "",
+  "retryAttempts": 3,
+  "retryDelay": 1000,
+  "requestTimeout": 30000,
+  "features": {
+    "voting": true,
+    "adminPanel": true,
+    "analytics": false,
+    "notifications": false
+  },
+  "voting": {
+    "defaultDuration": 604800,
+    "minVotingPower": 1,
+    "maxVotingPower": 1000,
+    "quorum": 50
+  }
+}
